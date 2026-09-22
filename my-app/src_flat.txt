@@ -1,0 +1,10 @@
+﻿I:\PROJECTS\Automated SEO & Website Audit Tool\frontend\my-app\src\App.tsx
+I:\PROJECTS\Automated SEO & Website Audit Tool\frontend\my-app\src\counter.ts
+I:\PROJECTS\Automated SEO & Website Audit Tool\frontend\my-app\src\main.ts
+I:\PROJECTS\Automated SEO & Website Audit Tool\frontend\my-app\src\main.tsx
+I:\PROJECTS\Automated SEO & Website Audit Tool\frontend\my-app\src\style.css
+I:\PROJECTS\Automated SEO & Website Audit Tool\frontend\my-app\src\types.ts
+I:\PROJECTS\Automated SEO & Website Audit Tool\frontend\my-app\src\vite-env.d.ts
+I:\PROJECTS\Automated SEO & Website Audit Tool\frontend\my-app\src\assets\hero.png
+I:\PROJECTS\Automated SEO & Website Audit Tool\frontend\my-app\src\assets\typescript.svg
+I:\PROJECTS\Automated SEO & Website Audit Tool\frontend\my-app\src\assets\vite.svg
