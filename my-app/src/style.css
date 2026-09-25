@@ -479,6 +479,46 @@ h1 {
   cursor: not-allowed;
 }
 
+/* ===== Robots.txt Inspector ===== */
+
+.robots-summary-box {
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.robots-summary-box:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.robots-results-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.robots-section-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.robots-section-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.robots-issue-card {
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.robots-issue-card button {
+  transition: background 0.2s;
+}
+
+.robots-issue-card button:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
 @media (max-width: 1024px) {
   .page {
     padding: 16px;

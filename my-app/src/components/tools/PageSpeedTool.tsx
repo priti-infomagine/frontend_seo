@@ -13,8 +13,15 @@ const CATEGORY_OPTIONS = [
   { value: 'accessibility', label: 'Accessibility' },
 ] as const;
 
+const VERSION_OPTIONS = [
+  { value: 'v11', label: 'Lighthouse v11' },
+  { value: 'v10', label: 'Lighthouse v10' },
+  { value: 'v9', label: 'Lighthouse v9' },
+] as const;
+
 type Device = typeof DEVICE_OPTIONS[number]['value'];
 type Category = typeof CATEGORY_OPTIONS[number]['value'];
+type Version = typeof VERSION_OPTIONS[number]['value'];
 
 interface CheckResponse {
   success: boolean;
@@ -52,7 +59,8 @@ interface StatusResponse {
   result_url: string;
 }
 
-interface ResultItem {
+// Backend response from /results/{check_id}
+interface BackendResultItem {
   id: string;
   url: string;
   device: string;
@@ -64,6 +72,58 @@ interface ResultItem {
   lcp_ms: number | null;
   tbt_ms: number | null;
   cls: number | null;
+  recommendations: Recommendation[];
+}
+
+interface ResultScores {
+  performance: number | null;
+  accessibility: number | null;
+  seo: number | null;
+  best_practices: number | null;
+}
+
+interface ResultMetrics {
+  fcp_ms: number | null;
+  lcp_ms: number | null;
+  tbt_ms: number | null;
+  cls: number | null;
+  speed_index_ms: number | null;
+}
+
+interface Recommendation {
+  // Core PageSpeed Insights / Lighthouse audit fields
+  audit_id: string;
+  category: string;
+  category_weight: number;
+  title: string;
+  score: number;
+  score_display_mode: string;
+  display_value: string | null;
+  numeric_value: number | null;
+  numeric_unit: string | null;
+  description: string;
+  explanation: string | null;
+  details_type: string | null;
+  estimated_savings_ms: number | null;
+  estimated_savings_bytes: number | null;
+  warnings: unknown[];
+  error_message: string | null;
+  evidence: Array<{ url: string }>;
+  where_to_fix: string;
+  recommendation: string;
+  // Allow any additional fields
+  [key: string]: unknown;
+}
+
+interface ResultItem {
+  id: string;
+  url: string;
+  device: string;
+  status: string;
+  reason: string | null;
+  scores: ResultScores;
+  metrics: ResultMetrics;
+  recommendations: Recommendation[];
 }
 
 const getScoreColor = (score: number | null): string => {
@@ -92,6 +152,10 @@ const getMetricColor = (metric: string, value: number | null): string => {
       if (value <= 0.1) return '#22c55e';
       if (value <= 0.25) return '#eab308';
       return '#ef4444';
+    case 'speed_index':
+      if (value <= 3400) return '#22c55e';
+      if (value <= 5800) return '#eab308';
+      return '#ef4444';
     default:
       return 'var(--text-muted)';
   }
@@ -103,6 +167,7 @@ const formatMetricValue = (metric: string, value: number | null): string => {
     case 'fcp':
     case 'lcp':
     case 'tbt':
+    case 'speed_index':
       return `${value}ms`;
     case 'cls':
       return value.toFixed(4);
@@ -110,6 +175,39 @@ const formatMetricValue = (metric: string, value: number | null): string => {
       return String(value);
   }
 };
+
+const getScoreLabel = (key: string): string => {
+  switch (key) {
+    case 'performance': return 'Performance';
+    case 'accessibility': return 'Accessibility';
+    case 'seo': return 'SEO';
+    case 'best_practices': return 'Best Practices';
+    default: return key;
+  }
+};
+
+// Transform backend result to frontend format
+const mapBackendResult = (r: BackendResultItem): ResultItem => ({
+  id: r.id,
+  url: r.url,
+  device: r.device,
+  status: r.status,
+  reason: r.reason,
+  scores: {
+    performance: r.performance_score,
+    accessibility: null,
+    seo: r.seo_score,
+    best_practices: null,
+  },
+  metrics: {
+    fcp_ms: r.fcp_ms,
+    lcp_ms: r.lcp_ms,
+    tbt_ms: r.tbt_ms,
+    cls: r.cls,
+    speed_index_ms: null,
+  },
+  recommendations: r.recommendations || [],
+});
 
 function ScoreGauge({ score, label, size = 80 }: { score: number | null; label: string; size?: number }) {
   const radius = (size - 8) / 2;
@@ -154,7 +252,7 @@ function ScoreGauge({ score, label, size = 80 }: { score: number | null; label: 
   );
 }
 
-function MetricCard({ label, value, unit, metricType }: { label: string; value: number | null; unit: string; metricType: 'fcp' | 'lcp' | 'tbt' | 'cls' }) {
+function MetricCard({ label, value, unit, metricType }: { label: string; value: number | null; unit: string; metricType: 'fcp' | 'lcp' | 'tbt' | 'cls' | 'speed_index' }) {
   const color = getMetricColor(metricType, value);
   const displayValue = formatMetricValue(metricType, value);
 
@@ -182,12 +280,16 @@ function MetricCard({ label, value, unit, metricType }: { label: string; value: 
 }
 
 function ResultCard({ result }: { result: ResultItem }) {
+  const scoreEntries = Object.entries(result.scores).filter(([, v]) => v !== null) as [string, number][];
   const metrics = [
-    { label: 'FCP', value: result.fcp_ms, unit: 'ms', type: 'fcp' as const },
-    { label: 'LCP', value: result.lcp_ms, unit: 'ms', type: 'lcp' as const },
-    { label: 'TBT', value: result.tbt_ms, unit: 'ms', type: 'tbt' as const },
-    { label: 'CLS', value: result.cls, unit: '', type: 'cls' as const },
+    { label: 'FCP', value: result.metrics.fcp_ms, unit: 'ms', type: 'fcp' as const },
+    { label: 'LCP', value: result.metrics.lcp_ms, unit: 'ms', type: 'lcp' as const },
+    { label: 'TBT', value: result.metrics.tbt_ms, unit: 'ms', type: 'tbt' as const },
+    { label: 'CLS', value: result.metrics.cls, unit: '', type: 'cls' as const },
+    { label: 'Speed Index', value: result.metrics.speed_index_ms, unit: 'ms', type: 'speed_index' as const },
   ].filter(m => m.value !== null);
+
+  const [showAllRecs, setShowAllRecs] = useState(false);
 
   return (
     <div
@@ -196,7 +298,7 @@ function ResultCard({ result }: { result: ResultItem }) {
         borderBottom: '1px solid var(--border)',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
         <a
           href={result.url}
           target="_blank"
@@ -230,12 +332,13 @@ function ResultCard({ result }: { result: ResultItem }) {
       </div>
 
       <div style={{ display: 'flex', gap: '24px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <ScoreGauge score={result.performance_score} label="Performance" size={72} />
-        <ScoreGauge score={result.seo_score} label="SEO" size={72} />
+        {scoreEntries.map(([key, score]) => (
+          <ScoreGauge key={key} score={score} label={getScoreLabel(key)} size={72} />
+        ))}
       </div>
 
       {metrics.length > 0 && (
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
           {metrics.map((m, i) => (
             <MetricCard
               key={i}
@@ -247,22 +350,185 @@ function ResultCard({ result }: { result: ResultItem }) {
           ))}
         </div>
       )}
+
+      {result.recommendations && result.recommendations.length > 0 && (
+        <div style={{ marginTop: '16px' }}>
+          <details>
+            <summary
+              style={{
+                fontSize: '13px',
+                fontWeight: '500',
+                color: 'var(--text)',
+                cursor: 'pointer',
+                padding: '8px 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="8" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+              </svg>
+              Recommendations ({result.recommendations.length})
+            </summary>
+            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {(showAllRecs ? result.recommendations : result.recommendations.slice(0, 3)).map((rec, i) => {
+                // Extract evidence URLs from evidence array or where_to_fix
+                const evidenceUrls = rec.evidence?.map((e: { url: string }) => e.url).filter(Boolean) || 
+                  (rec.where_to_fix ? rec.where_to_fix.split(';').map((u: string) => u.trim()).filter(Boolean) : []);
+                
+                // Get category badge color
+                const categoryColor = rec.category === 'Performance' ? '#3b82f6' :
+                  rec.category === 'Accessibility' ? '#22c55e' :
+                  rec.category === 'Best Practices' ? '#8b5cf6' :
+                  rec.category === 'SEO' ? '#f97316' : 'var(--text-muted)';
+                
+                // Format savings display
+                const savingsDisplay = rec.display_value || 
+                  (rec.estimated_savings_bytes ? `~${Math.round(rec.estimated_savings_bytes / 1024)} KiB` : null) ||
+                  (rec.estimated_savings_ms ? `${rec.estimated_savings_ms} ms` : null);
+                
+                return (
+                  <div
+                    key={rec.audit_id || i}
+                    style={{
+                      padding: '14px',
+                      background: 'rgba(0,0,0,0.2)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '10px',
+                    }}
+                  >
+                    {/* Title row with category badge and score */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                      <span style={{ 
+                        fontSize: '11px', 
+                        fontWeight: '600', 
+                        color: '#fff', 
+                        background: categoryColor, 
+                        padding: '2px 8px', 
+                        borderRadius: '999px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}>
+                        {rec.category}
+                      </span>
+                      <span style={{ 
+                        fontSize: '11px', 
+                        fontWeight: '500', 
+                        color: 'var(--text-muted)',
+                        padding: '2px 8px',
+                        background: 'rgba(255,255,255,0.05)',
+                        borderRadius: '4px',
+                      }}>
+                        Score: {rec.score}
+                      </span>
+                      {savingsDisplay && (
+                        <span style={{ 
+                          fontSize: '11px', 
+                          fontWeight: '500', 
+                          color: '#22c55e',
+                          padding: '2px 8px',
+                          background: 'rgba(34, 197, 94, 0.15)',
+                          borderRadius: '4px',
+                        }}>
+                          {savingsDisplay}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Issue title */}
+                    <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text)', marginBottom: '8px' }}>
+                      {rec.title}
+                    </div>
+                    
+                    {/* Description / Impact */}
+                    {rec.description && (
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: '8px' }}>
+                        <strong>Impact:</strong> {rec.description}
+                      </div>
+                    )}
+                    
+                    {/* Recommended fix */}
+                    {rec.recommendation && (
+                      <div style={{ fontSize: '12px', color: '#93c5fd', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: '8px' }}>
+                        <strong>Recommended fix:</strong> {rec.recommendation}
+                      </div>
+                    )}
+                    
+                    {/* Evidence URLs */}
+                    {evidenceUrls.length > 0 && (
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                        <strong>Evidence ({evidenceUrls.length}):</strong>
+                        <div style={{ marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {evidenceUrls.map((url, idx) => (
+                            <a
+                              key={idx}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                fontSize: '11px',
+                                color: 'var(--primary)',
+                                textDecoration: 'none',
+                                wordBreak: 'break-all',
+                                padding: '2px 8px',
+                                background: 'rgba(37, 99, 235, 0.1)',
+                                borderRadius: '4px',
+                              }}
+                              title={url}
+                            >
+                              {url}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {result.recommendations.length > 3 && !showAllRecs && (
+                <button
+                  onClick={() => setShowAllRecs(true)}
+                  style={{
+                    alignSelf: 'flex-start',
+                    padding: '6px 14px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    color: 'var(--primary)',
+                    background: 'transparent',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Show all {result.recommendations.length}
+                </button>
+              )}
+            </div>
+          </details>
+        </div>
+      )}
     </div>
   );
 }
 
 export function PageSpeedTool({ onBack }: { onBack: () => void }) {
   const [url, setUrl] = useState('');
-  const [device, setDevice] = useState<Device>('mobile');
-  const [categories, setCategories] = useState<Category[]>(CATEGORY_OPTIONS.map(c => c.value));
+  const [devices, setDevices] = useState<Device[]>(DEVICE_OPTIONS.map(d => d.value));
+  const [category, setCategory] = useState<Category[]>(CATEGORY_OPTIONS.map(c => c.value));
+  const [version, setVersion] = useState<Version[]>(VERSION_OPTIONS.map(v => v.value));
   const [maxPages, setMaxPages] = useState<string>('4');
   const [isLoading, setIsLoading] = useState(false);
   const [polling, setPolling] = useState(false);
+  const [pollingResults, setPollingResults] = useState(false);
   const [checkId, setCheckId] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [results, setResults] = useState<ResultItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentPhase, setCurrentPhase] = useState<string>('');
+  const [lastResultCount, setLastResultCount] = useState(0);
 
   const normalizeUrl = (input: string): string => {
     if (!input) return '';
@@ -279,15 +545,31 @@ export function PageSpeedTool({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const toggleDevice = useCallback((d: Device) => {
+    setDevices(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+  }, []);
+
   const toggleCategory = useCallback((cat: Category) => {
-    setCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+    setCategory(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
+  }, []);
+
+  const toggleVersion = useCallback((v: Version) => {
+    setVersion(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]);
   }, []);
 
   const startCheck = async () => {
     const normalized = normalizeUrl(url);
     if (!normalized) return;
-    if (categories.length === 0) {
+    if (devices.length === 0) {
+      setError('Please select at least one device');
+      return;
+    }
+    if (category.length === 0) {
       setError('Please select at least one category');
+      return;
+    }
+    if (version.length === 0) {
+      setError('Please select at least one version');
       return;
     }
 
@@ -295,6 +577,7 @@ export function PageSpeedTool({ onBack }: { onBack: () => void }) {
     setError(null);
     setStatus(null);
     setResults([]);
+    setLastResultCount(0);
     setCheckId(null);
     setCurrentPhase('queued');
 
@@ -303,7 +586,7 @@ export function PageSpeedTool({ onBack }: { onBack: () => void }) {
       const res = await fetch('/api/v1/lighthouse/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: normalized, device, categories, max_pages: maxPagesNum }),
+        body: JSON.stringify({ url: normalized, device: devices, category, version, max_pages: maxPagesNum }),
       });
 
       if (!res.ok) {
@@ -316,6 +599,7 @@ export function PageSpeedTool({ onBack }: { onBack: () => void }) {
       setCurrentPhase('queued');
       setIsLoading(false);
       setPolling(true);
+      setPollingResults(true);
     } catch (err) {
       setIsLoading(false);
       setError(err instanceof Error ? err.message : 'Failed to start check');
@@ -338,6 +622,7 @@ export function PageSpeedTool({ onBack }: { onBack: () => void }) {
 
       if (data.status === 'completed' || data.status === 'failed') {
         setPolling(false);
+        setPollingResults(false);
         if (data.status === 'completed') {
           await fetchResults(data.check_id);
         } else {
@@ -346,6 +631,7 @@ export function PageSpeedTool({ onBack }: { onBack: () => void }) {
       }
     } catch (err) {
       setPolling(false);
+      setPollingResults(false);
       setError(err instanceof Error ? err.message : 'Failed to poll status');
     }
   }, [checkId]);
@@ -357,19 +643,47 @@ export function PageSpeedTool({ onBack }: { onBack: () => void }) {
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
       }
-      const data: ResultItem[] = await res.json();
-      setResults(data);
+      const data: BackendResultItem[] = await res.json();
+      const mapped = data.map(mapBackendResult);
+      setResults(mapped);
+      setLastResultCount(mapped.length);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch results');
     }
   };
 
+  const pollResults = useCallback(async () => {
+    if (!checkId) return;
+    try {
+      const res = await fetch(`/api/v1/lighthouse/results/${checkId}`);
+      if (!res.ok) return;
+      const data: BackendResultItem[] = await res.json();
+      const mapped = data.map(mapBackendResult);
+      // Only update if new results arrived (backend returns cumulative results)
+      if (mapped.length > lastResultCount) {
+        setResults(mapped);
+        setLastResultCount(mapped.length);
+      }
+    } catch {
+      // Silently ignore result fetch errors; status polling handles terminal errors
+    }
+  }, [checkId, lastResultCount]);
+
+  // Status polling (every 2-3s) - live progress
   useEffect(() => {
     if (!polling) return;
-    const interval = setInterval(pollStatus, 2000);
+    const interval = setInterval(pollStatus, 2500);
     pollStatus();
     return () => clearInterval(interval);
   }, [polling, pollStatus]);
+
+  // Results polling (every 12s) - incremental results
+  useEffect(() => {
+    if (!pollingResults) return;
+    const interval = setInterval(pollResults, 12000);
+    pollResults(); // Initial fetch
+    return () => clearInterval(interval);
+  }, [pollingResults, pollResults]);
 
   return (
     <ToolInputWrapper
@@ -404,12 +718,11 @@ export function PageSpeedTool({ onBack }: { onBack: () => void }) {
                     }}
                   >
                     <input
-                      type="radio"
-                      name="device"
+                      type="checkbox"
                       value={opt.value}
-                      checked={device === opt.value}
-                      onChange={() => setDevice(opt.value)}
-                      style={{ accentColor: 'var(--accent)' }}
+                      checked={devices.includes(opt.value)}
+                      onChange={() => toggleDevice(opt.value)}
+                      style={{ accentColor: 'var(--accent)', width: '16px', height: '16px' }}
                     />
                     {opt.label}
                   </label>
@@ -437,8 +750,38 @@ export function PageSpeedTool({ onBack }: { onBack: () => void }) {
                     <input
                       type="checkbox"
                       value={opt.value}
-                      checked={categories.includes(opt.value)}
+                      checked={category.includes(opt.value)}
                       onChange={() => toggleCategory(opt.value)}
+                      style={{ accentColor: 'var(--accent)', width: '16px', height: '16px' }}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                Lighthouse Version
+              </label>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                {VERSION_OPTIONS.map(opt => (
+                  <label
+                    key={opt.value}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      color: 'var(--text)',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      value={opt.value}
+                      checked={version.includes(opt.value)}
+                      onChange={() => toggleVersion(opt.value)}
                       style={{ accentColor: 'var(--accent)', width: '16px', height: '16px' }}
                     />
                     {opt.label}
@@ -562,7 +905,7 @@ export function PageSpeedTool({ onBack }: { onBack: () => void }) {
           <h3 style={{ fontSize: '16px', fontWeight: '600', margin: '0', padding: '16px 24px', borderBottom: '1px solid var(--border)' }}>
             Results ({results.length} pages)
           </h3>
-          <div style={{ maxHeight: '500px', overflow: 'auto' }}>
+          <div style={{ maxHeight: '600px', overflow: 'auto' }}>
             {results.map((result, idx) => (
               <ResultCard key={result.id || idx} result={result} />
             ))}
