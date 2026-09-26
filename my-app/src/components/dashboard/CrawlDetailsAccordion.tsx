@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { AuditInfo } from '../../types/audit';
-import { UnavailableMetricDisplay } from '../common/UnavailableMetricDisplay';
 import { formatNumber } from '../../utils/format';
 
 interface CrawlDetailsAccordionProps {
@@ -23,22 +22,22 @@ export function CrawlDetailsAccordion({ audit }: CrawlDetailsAccordionProps) {
 
   const renderCrawlStats = () => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-      <StatCard label="Discovered" value={formatNumber(audit.crawl_stats.discovered)} />
-      <StatCard label="Crawled" value={formatNumber(audit.crawl_stats.crawled)} />
+      <StatCard label="Discovered" value={formatNumber(audit.crawl_stats.pages_discovered)} />
+      <StatCard label="Crawled" value={formatNumber(audit.crawl_stats.pages_crawled)} />
       <StatCard label="Redirects" value={formatNumber(audit.crawl_stats.redirects)} />
       <StatCard label="Crawl Errors" value={formatNumber(audit.crawl_stats.crawl_errors)} />
-      <StatCard
+      {/* <StatCard
         label="Blocked by Robots"
         value={
           <UnavailableMetricDisplay metric={audit.crawl_stats.blocked_by_robots} showValue={true} />
         }
-      />
-      <StatCard
+      /> */}
+      {/* <StatCard
         label="Orphan Pages"
         value={
           <UnavailableMetricDisplay metric={audit.crawl_stats.orphan_pages} showValue={true} />
         }
-      />
+      /> */}
     </div>
   );
 
@@ -73,9 +72,9 @@ export function CrawlDetailsAccordion({ audit }: CrawlDetailsAccordionProps) {
   const renderLinks = () => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
       <StatCard label="Internal Total" value={formatNumber(audit.links.internal.total)} />
-      <StatCard label="Internal Broken" value={formatNumber(audit.links.internal.broken)} valueStyle={{ color: audit.links.internal.broken > 0 ? 'var(--danger)' : 'var(--success)' }} />
+      {/* <StatCard label="Internal Broken" value={formatNumber(audit.links.internal.broken)} valueStyle={{ color: audit.links.internal.broken > 0 ? 'var(--danger)' : 'var(--success)' }} /> */}
       <StatCard label="External Total" value={formatNumber(audit.links.external.total)} />
-      <StatCard label="External Broken" value={formatNumber(audit.links.external.broken)} valueStyle={{ color: audit.links.external.broken > 0 ? 'var(--danger)' : 'var(--success)' }} />
+      {/* <StatCard label="External Broken" value={formatNumber(audit.links.external.broken)} valueStyle={{ color: audit.links.external.broken > 0 ? 'var(--danger)' : 'var(--success)' }} /> */}
       <StatCard label="Orphan Pages" value={formatNumber(audit.links.orphan_pages)} />
       <StatCard label="Total Links" value={formatNumber(audit.links.total_links)} />
     </div>
@@ -87,8 +86,8 @@ export function CrawlDetailsAccordion({ audit }: CrawlDetailsAccordionProps) {
       <StatCard label="Missing Alt" value={formatNumber(audit.images.missing_alt)} valueStyle={{ color: audit.images.missing_alt > 0 ? 'var(--danger)' : 'var(--success)' }} />
       <StatCard label="Empty Alt" value={formatNumber(audit.images.empty_alt)} valueStyle={{ color: audit.images.empty_alt > 0 ? 'var(--danger)' : 'var(--success)' }} />
       <StatCard label="Missing Dimensions" value={formatNumber(audit.images.missing_dimensions)} valueStyle={{ color: audit.images.missing_dimensions > 0 ? 'var(--danger)' : 'var(--success)' }} />
-      <StatCard label="Oversized" value={formatNumber(audit.images.oversized)} valueStyle={{ color: audit.images.oversized > 0 ? 'var(--danger)' : 'var(--success)' }} />
-      <StatCard label="Modern Format" value={formatNumber(audit.images.modern_format)} valueStyle={{ color: 'var(--success)' }} />
+      {/* <StatCard label="Oversized" value={formatNumber(audit.images.oversized)} valueStyle={{ color: audit.images.oversized > 0 ? 'var(--danger)' : 'var(--success)' }} /> */}
+      {/* <StatCard label="Modern Format" value={formatNumber(audit.images.modern_format)} valueStyle={{ color: 'var(--success)' }} /> */}
       <StatCard label="Lazy Loading" value={formatNumber(audit.images.lazy_loading)} valueStyle={{ color: 'var(--success)' }} />
     </div>
   );
@@ -123,9 +122,9 @@ export function CrawlDetailsAccordion({ audit }: CrawlDetailsAccordionProps) {
       <StatCard label="Thin Pages" value={formatNumber(audit.content.thin_pages)} valueStyle={{ color: audit.content.thin_pages > 0 ? 'var(--danger)' : 'var(--success)' }} />
       <StatCard label="Duplicate Pages" value={formatNumber(audit.content.duplicate_pages)} valueStyle={{ color: audit.content.duplicate_pages > 0 ? 'var(--danger)' : 'var(--success)' }} />
       <StatCard label="Duplicate Groups" value={formatNumber(audit.content.duplicate_groups)} />
-      <StatCard label="Near Duplicates" value={formatNumber(audit.content.near_duplicate_pages)} valueStyle={{ color: audit.content.near_duplicate_pages > 0 ? 'var(--danger)' : 'var(--success)' }} />
+      {/* <StatCard label="Near Duplicates" value={formatNumber(audit.content.near_duplicate_pages)} valueStyle={{ color: audit.content.near_duplicate_pages > 0 ? 'var(--danger)' : 'var(--success)' }} />
       <StatCard label="Missing Author" value={formatNumber(audit.content.missing_author)} valueStyle={{ color: audit.content.missing_author > 0 ? 'var(--danger)' : 'var(--success)' }} />
-      <StatCard label="Outdated Pages" value={formatNumber(audit.content.outdated_pages)} valueStyle={{ color: audit.content.outdated_pages > 0 ? 'var(--danger)' : 'var(--success)' }} />
+      <StatCard label="Outdated Pages" value={formatNumber(audit.content.outdated_pages)} valueStyle={{ color: audit.content.outdated_pages > 0 ? 'var(--danger)' : 'var(--success)' }} /> */}
     </div>
   );
 

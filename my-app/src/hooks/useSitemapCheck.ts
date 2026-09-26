@@ -1,121 +1,155 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { sitemapApi } from '../services/sitemapApi';
 import type {
   SitemapCheckRequest,
-  SitemapCheckAcceptedResponse,
-  SitemapFilePage,
-  SitemapUrlPage,
-  SitemapRawResponse,
-  SitemapFilePageItem,
+  SitemapCheckResponse,
+  SitemapStatusResponse,
+  SitemapResultResponse,
   ApiError,
+  ProgressPhase,
 } from '../types/sitemap';
 
+type Phase = 'idle' | 'submitting' | 'polling' | 'completed' | 'error';
+
 interface UseSitemapCheckReturn {
-  isLoading: boolean;
+  phase: Phase;
   error: string | null;
-  result: SitemapCheckAcceptedResponse | null;
-  filesPage: SitemapFilePage | null;
-  activeFile: SitemapFilePageItem | null;
-  urlsPage: SitemapUrlPage | null;
-  rawContent: SitemapRawResponse | null;
+  checkId: string | null;
+  taskId: string | null;
+  statusResponse: SitemapStatusResponse | null;
+  resultResponse: SitemapResultResponse | null;
+  progress: { phase: ProgressPhase; message: string } | null;
   runCheck: (request: SitemapCheckRequest) => Promise<void>;
-  loadFiles: (checkId: string, page?: number) => Promise<void>;
-  loadUrls: (checkId: string, fileIndex: number, page?: number) => Promise<void>;
-  loadRaw: (checkId: string, fileIndex: number) => Promise<void>;
-  setActiveFile: (file: SitemapFilePageItem | null) => void;
   clearError: () => void;
   reset: () => void;
-  setRawContent: (content: SitemapRawResponse | null) => void;
 }
 
 export function useSitemapCheck(): UseSitemapCheckReturn {
-  const [isLoading, setIsLoading] = useState(false);
+  const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SitemapCheckAcceptedResponse | null>(null);
-  const [filesPage, setFilesPage] = useState<SitemapFilePage | null>(null);
-  const [activeFile, setActiveFile] = useState<SitemapFilePageItem | null>(null);
-  const [urlsPage, setUrlsPage] = useState<SitemapUrlPage | null>(null);
-  const [rawContent, setRawContent] = useState<SitemapRawResponse | null>(null);
+  const [checkId, setCheckId] = useState<string | null>(null);
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [statusResponse, setStatusResponse] = useState<SitemapStatusResponse | null>(null);
+  const [resultResponse, setResultResponse] = useState<SitemapResultResponse | null>(null);
+  const [progress, setProgress] = useState<{ phase: ProgressPhase; message: string } | null>(null);
+
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
 
   const clearError = useCallback(() => setError(null), []);
 
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
+
+  const pollStatus = useCallback(async (currentCheckId?: string) => {
+    const cid = currentCheckId || checkId;
+    if (!cid || !isMountedRef.current) return;
+
+    try {
+      const data = await sitemapApi.getStatus(cid);
+      
+      if (!isMountedRef.current) return;
+      
+      setStatusResponse(data);
+      setProgress(data.progress);
+
+      if (data.status === 'completed') {
+        stopPolling();
+        setPhase('completed');
+        await fetchResult(data.check_id);
+      } else if (data.status === 'failed') {
+        stopPolling();
+        setPhase('error');
+        setError(data.error || 'Sitemap check failed');
+      }
+      // Continue polling for 'queued' or 'processing'
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      stopPolling();
+      setPhase('error');
+      const apiError = err as ApiError;
+      setError(apiError.detail || 'Failed to poll status');
+    }
+  }, [checkId, stopPolling]);
+
+  const fetchResult = useCallback(async (checkId: string) => {
+    try {
+      const data = await sitemapApi.getResult(checkId);
+      if (!isMountedRef.current) return;
+      setResultResponse(data);
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      const apiError = err as ApiError;
+      setError(apiError.detail || 'Failed to fetch results');
+    }
+  }, []);
+
   const runCheck = useCallback(async (request: SitemapCheckRequest) => {
-    setIsLoading(true);
+    setPhase('submitting');
     setError(null);
-    setResult(null);
-    setFilesPage(null);
-    setActiveFile(null);
-    setUrlsPage(null);
-    setRawContent(null);
+    setCheckId(null);
+    setTaskId(null);
+    setStatusResponse(null);
+    setResultResponse(null);
+    setProgress(null);
+    stopPolling();
 
     try {
-      const data = await sitemapApi.check(request);
-      setResult(data);
-      // Auto-load first page of files
-      await loadFiles(data.check_id, 1);
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.detail || 'Failed to run sitemap check');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      const data: SitemapCheckResponse = await sitemapApi.check(request);
+      
+      if (!isMountedRef.current) return;
+      
+      const newCheckId = data.check_id;
+      setCheckId(newCheckId);
+      setTaskId(data.task_id);
+      setPhase('polling');
 
-  const loadFiles = useCallback(async (checkId: string, page = 1) => {
-    try {
-      const data = await sitemapApi.listFiles(checkId, page);
-      setFilesPage(data);
+      // Start polling - pass checkId directly to avoid closure issue
+      pollingIntervalRef.current = setInterval(() => pollStatus(newCheckId), 2500);
+      pollStatus(newCheckId); // Initial poll
     } catch (err) {
+      if (!isMountedRef.current) return;
+      setPhase('error');
       const apiError = err as ApiError;
-      setError(apiError.detail || 'Failed to load sitemap files');
+      setError(apiError.detail || 'Failed to start sitemap check');
     }
-  }, []);
-
-  const loadUrls = useCallback(async (checkId: string, fileIndex: number, page = 1) => {
-    try {
-      const data = await sitemapApi.listUrls(checkId, fileIndex, page);
-      setUrlsPage(data);
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.detail || 'Failed to load sitemap URLs');
-    }
-  }, []);
-
-  const loadRaw = useCallback(async (checkId: string, fileIndex: number) => {
-    try {
-      const data = await sitemapApi.getRaw(checkId, fileIndex);
-      setRawContent(data);
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.detail || 'Failed to load raw XML');
-    }
-  }, []);
+  }, [pollStatus, stopPolling]);
 
   const reset = useCallback(() => {
-    setIsLoading(false);
+    stopPolling();
+    setPhase('idle');
     setError(null);
-    setResult(null);
-    setFilesPage(null);
-    setActiveFile(null);
-    setUrlsPage(null);
-    setRawContent(null);
-  }, []);
+    setCheckId(null);
+    setTaskId(null);
+    setStatusResponse(null);
+    setResultResponse(null);
+    setProgress(null);
+  }, [stopPolling]);
 
   return {
-    isLoading,
+    phase,
     error,
-    result,
-    filesPage,
-    activeFile,
-    urlsPage,
-    rawContent,
+    checkId,
+    taskId,
+    statusResponse,
+    resultResponse,
+    progress,
     runCheck,
-    loadFiles,
-    loadUrls,
-    loadRaw,
-    setActiveFile,
     clearError,
     reset,
-    setRawContent,
   };
 }

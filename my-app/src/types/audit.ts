@@ -5,8 +5,8 @@ export interface UnavailableMetric<T = unknown> {
 }
 
 export interface CrawlStats {
-  discovered: number;
-  crawled: number;
+  pages_discovered: number;
+  pages_crawled: number;
   // blocked_by_robots: UnavailableMetric<number>;
   redirects: number;
   // orphan_pages: UnavailableMetric<number>;
@@ -51,16 +51,16 @@ export interface Images {
   total: number;
   missing_alt: number;
   lazy_loading: number;
+  missing_dimensions: number;
+  empty_alt: number;
 }
 
-// export interface Content {
-//   thin_pages: number;
-//   duplicate_pages: number;
-//   duplicate_groups: number;
-//   near_duplicate_pages: number;
-//   missing_author: number;
-//   outdated_pages: number;
-// }
+export interface Content {
+  thin_pages: number;
+  duplicate_pages: number;
+  duplicate_groups: number;
+  
+}
 
 export interface ExternalDependency {
   feature: string;

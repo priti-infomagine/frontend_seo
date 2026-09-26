@@ -1,9 +1,8 @@
 import type {
   SitemapCheckRequest,
-  SitemapCheckAcceptedResponse,
-  SitemapFilePage,
-  SitemapUrlPage,
-  SitemapRawResponse,
+  SitemapCheckResponse,
+  SitemapStatusResponse,
+  SitemapResultResponse,
   ApiError,
 } from '../types/sitemap';
 
@@ -25,23 +24,19 @@ class SitemapApi {
     return res.json();
   }
 
-  async check(request: SitemapCheckRequest): Promise<SitemapCheckAcceptedResponse> {
-    return this.request<SitemapCheckAcceptedResponse>('/check', {
+  async check(request: SitemapCheckRequest): Promise<SitemapCheckResponse> {
+    return this.request<SitemapCheckResponse>('/check', {
       method: 'POST',
       body: JSON.stringify(request),
     });
   }
 
-  async listFiles(checkId: string, page = 1, pageSize = 20): Promise<SitemapFilePage> {
-    return this.request<SitemapFilePage>(`/${checkId}/files?page=${page}&page_size=${pageSize}`);
+  async getStatus(checkId: string): Promise<SitemapStatusResponse> {
+    return this.request<SitemapStatusResponse>(`/status/${checkId}`);
   }
 
-  async listUrls(checkId: string, fileIndex: number, page = 1, pageSize = 100): Promise<SitemapUrlPage> {
-    return this.request<SitemapUrlPage>(`/${checkId}/files/${fileIndex}/urls?page=${page}&page_size=${pageSize}`);
-  }
-
-  async getRaw(checkId: string, fileIndex: number): Promise<SitemapRawResponse> {
-    return this.request<SitemapRawResponse>(`/${checkId}/files/${fileIndex}/raw`);
+  async getResult(checkId: string): Promise<SitemapResultResponse> {
+    return this.request<SitemapResultResponse>(`/result/${checkId}`);
   }
 }
 
