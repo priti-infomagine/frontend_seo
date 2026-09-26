@@ -1,177 +1,231 @@
-import { useState } from 'react';
-import { ToolInputForm, ToolInputWrapper } from './ToolCard';
+import React, { useState } from 'react';
+import { ToolInputWrapper } from './ToolCard';
+import { useRobotsCheck, extractBareDomain } from '../../hooks/useRobotsCheck';
+import { RobotsSummaryCards } from './robots/RobotsSummaryCards';
+import { RobotsSitemapsCard } from './robots/RobotsSitemapsCard';
+import { RobotsFindingsList } from './robots/RobotsFindingsList';
+import { RobotsRecommendationsList } from './robots/RobotsRecommendationsList';
+import { RobotsRawContent } from './robots/RobotsRawContent';
 
 export function RobotsTxtTool({ onBack }: { onBack: () => void }) {
-  const [url, setUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [content, setContent] = useState<string | null>(null);
-  const [parsed, setParsed] = useState<Array<{ type: string; value: string }>>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [domainInput, setDomainInput] = useState('');
+  const {
+    isLoading,
+    result,
+    error,
+    startCheck,
+    reset,
+  } = useRobotsCheck();
 
-  const normalizeUrl = (input: string): string => {
-    if (!input) return '';
-    let value = input.trim();
-    if (!/^https?:\/\//i.test(value)) {
-      value = `https://${value}`;
-    }
-    try {
-      const urlObj = new URL(value);
-      urlObj.hostname = urlObj.hostname.toLowerCase();
-      return urlObj.toString();
-    } catch {
-      return '';
-    }
+  const previewBareDomain = extractBareDomain(domainInput);
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!domainInput.trim() || isLoading) return;
+    startCheck(domainInput);
   };
 
-  const parseRobotsTxt = (text: string): Array<{ type: string; value: string }> => {
-    const lines = text.split('\n');
-    const result: Array<{ type: string; value: string }> = [];
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
-      const colonIndex = trimmed.indexOf(':');
-      if (colonIndex > 0) {
-        const type = trimmed.substring(0, colonIndex).trim().toLowerCase();
-        const value = trimmed.substring(colonIndex + 1).trim();
-        result.push({ type, value });
-      }
-    }
-    return result;
-  };
-
-  const handleFetch = async () => {
-    const normalized = normalizeUrl(url);
-    if (!normalized) return;
-
-    setIsLoading(true);
-    setError(null);
-    setContent(null);
-    setParsed([]);
-
-    try {
-      const res = await fetch(`${normalized}/robots.txt`);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} — ${res.statusText}`);
-      }
-      const text = await res.text();
-      setContent(text);
-      setParsed(parseRobotsTxt(text));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch robots.txt');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleNewCheck = () => {
+    reset();
   };
 
   return (
     <ToolInputWrapper
-      title="robots.txt Inspector"
-      desc="Fetch and inspect robots.txt to understand crawling rules and disallowed paths."
+      title="robots.txt Inspector & Evaluator"
+      desc="Fetch, parse, validate, and test crawling directives, sitemap declarations, and syntax warnings for any domain."
       onBack={onBack}
     >
-      <ToolInputForm
-        url={url}
-        onUrlChange={setUrl}
-        onSubmit={handleFetch}
-        isLoading={isLoading}
-        submitLabel="Fetch"
-        inputPlaceholder="example.com"
-      />
+      {/* Domain Input Form */}
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="tool-form-row">
+          <input
+            type="text"
+            placeholder="example.com or https://example.com/robots.txt"
+            value={domainInput}
+            onChange={(e) => setDomainInput(e.target.value)}
+            disabled={isLoading}
+            style={{
+              flex: 1,
+              padding: '14px 16px',
+              fontSize: '15px',
+              fontFamily: 'inherit',
+              border: '1px solid var(--border)',
+              borderRadius: '10px',
+              background: '#0b1220',
+              color: 'var(--text)',
+              outline: 'none',
+              transition: 'border-color 0.2s',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'var(--primary)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border)';
+            }}
+          />
 
+          <button
+            type="submit"
+            disabled={!domainInput.trim() || isLoading}
+            style={{
+              padding: '14px 24px',
+              fontSize: '15px',
+              fontWeight: '600',
+              fontFamily: 'inherit',
+              color: '#fff',
+              background: 'var(--primary)',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: !domainInput.trim() || isLoading ? 'not-allowed' : 'pointer',
+              transition: 'background 0.2s',
+              whiteSpace: 'nowrap',
+              opacity: !domainInput.trim() || isLoading ? 0.6 : 1,
+            }}
+          >
+            {isLoading ? 'Checking...' : 'Check robots.txt'}
+          </button>
+        </div>
+
+        {domainInput && previewBareDomain && previewBareDomain !== domainInput && (
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>Target Domain: </span>
+            <code style={{ background: 'rgba(37, 99, 235, 0.15)', padding: '2px 8px', borderRadius: '4px', color: 'var(--primary)' }}>
+              {previewBareDomain}
+            </code>
+          </div>
+        )}
+      </form>
+
+      {/* Error Message Banner */}
       {error && (
         <div
           style={{
-            padding: '16px',
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
+            padding: '16px 20px',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
             borderRadius: '12px',
             color: '#fca5a5',
             fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
           }}
         >
-          {error}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '18px' }}>⚠️</span>
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleNewCheck}
+            style={{
+              padding: '6px 12px',
+              fontSize: '12px',
+              background: 'rgba(239, 68, 68, 0.2)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: '6px',
+              color: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
-      {parsed.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Loading Spinner */}
+      {isLoading && (
+        <div
+          style={{
+            padding: '36px 24px',
+            background: 'var(--card-bg)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            gap: '16px',
+          }}
+        >
           <div
             style={{
-              background: 'var(--card-bg)',
-              border: '1px solid var(--border)',
-              borderRadius: '12px',
-              padding: '24px',
-              overflow: 'auto',
+              width: '44px',
+              height: '44px',
+              border: '3px solid rgba(37, 99, 235, 0.2)',
+              borderTopColor: 'var(--primary)',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
             }}
-          >
-            <h3 style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 16px' }}>
-              Parsed Rules ({parsed.length})
+          />
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+          <div>
+            <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: '600' }}>
+              Fetching & Analyzing robots.txt...
             </h3>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-muted)', fontWeight: '500' }}>Directive</th>
-                  <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-muted)', fontWeight: '500' }}>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {parsed.map((rule, i) => (
-                  <tr
-                    key={i}
-                    style={{
-                      borderBottom: i < parsed.length - 1 ? '1px solid var(--border)' : 'none',
-                    }}
-                  >
-                    <td style={{ padding: '8px 12px', color: 'var(--primary)', fontWeight: '500', fontFamily: 'monospace' }}>
-                      {rule.type}
-                    </td>
-                    <td style={{ padding: '8px 12px', color: 'var(--text)', wordBreak: 'break-all' }}>
-                      {rule.value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
+              Performing live fetch, syntax parsing, sitemap reachability, and rule evaluation.
+            </p>
           </div>
         </div>
       )}
 
-      {content && (
-        <details style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
-          <summary
-            style={{
-              padding: '12px 16px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: '500',
-              color: 'var(--text)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              userSelect: 'none',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-            Raw robots.txt
-          </summary>
-          <pre
-            style={{
-              margin: 0,
-              padding: '16px',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-              fontSize: '13px',
-              lineHeight: 1.5,
-              color: 'var(--text)',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              background: 'rgba(0,0,0,0.2)',
-            }}
-          >
-            {content}
-          </pre>
-        </details>
+      {/* Results View */}
+      {!isLoading && result && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Top Actions bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+              Check result for <strong style={{ color: 'var(--text)' }}>{result.domain}</strong>
+            </div>
+            <button
+              type="button"
+              onClick={handleNewCheck}
+              style={{
+                padding: '8px 16px',
+                fontSize: '13px',
+                fontWeight: '600',
+                background: 'rgba(37, 99, 235, 0.15)',
+                border: '1px solid var(--primary)',
+                borderRadius: '8px',
+                color: 'var(--primary)',
+                cursor: 'pointer',
+              }}
+            >
+              Start New Check
+            </button>
+          </div>
+
+          {/* 1. Summary Cards & Attributes */}
+          <RobotsSummaryCards result={result} />
+
+          {/* 2. Declared Sitemaps & Reachability Table */}
+          <RobotsSitemapsCard
+            sitemapsDeclared={result.sitemaps_declared || []}
+            sitemapReachability={result.sitemap_reachability || []}
+          />
+
+          {/* 3. Foldable Findings & Syntax Warnings */}
+          <RobotsFindingsList
+            findings={result.findings || []}
+            syntaxWarnings={result.syntax_warnings || []}
+          />
+
+          {/* 4. Foldable Recommendations */}
+          <RobotsRecommendationsList recommendations={result.recommendations || []} />
+
+          {/* 5. Raw robots.txt Content & Optional Markdown */}
+          <RobotsRawContent
+            rawContent={result.raw_content}
+            reportMarkdown={result.report_markdown}
+          />
+        </div>
       )}
     </ToolInputWrapper>
   );

@@ -7,9 +7,9 @@ export interface UnavailableMetric<T = unknown> {
 export interface CrawlStats {
   discovered: number;
   crawled: number;
-  // blocked_by_robots: UnavailableMetric<number>;
+  blocked_by_robots: UnavailableMetric<number>;
   redirects: number;
-  // orphan_pages: UnavailableMetric<number>;
+  orphan_pages: UnavailableMetric<number>;
   crawl_errors: number;
   status_codes: Record<string, number>;
   started_at: string;
@@ -39,10 +39,8 @@ export interface StructuredData {
 }
 
 export interface Links {
-  internal: { total: number; // broken: number
-   };
-  external: { total: number; //broken: number 
-    };
+  internal: { total: number; broken: number };
+  external: { total: number; broken: number };
   orphan_pages: number;
   total_links: number;
 }
@@ -51,16 +49,20 @@ export interface Images {
   total: number;
   missing_alt: number;
   lazy_loading: number;
+  empty_alt: number;
+  missing_dimensions: number;
+  oversized: number;
+  modern_format: number;
 }
 
-// export interface Content {
-//   thin_pages: number;
-//   duplicate_pages: number;
-//   duplicate_groups: number;
-//   near_duplicate_pages: number;
-//   missing_author: number;
-//   outdated_pages: number;
-// }
+export interface Content {
+  thin_pages: number;
+  duplicate_pages: number;
+  duplicate_groups: number;
+  near_duplicate_pages: number;
+  missing_author: number;
+  outdated_pages: number;
+}
 
 export interface ExternalDependency {
   feature: string;
