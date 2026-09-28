@@ -68,6 +68,8 @@ interface BackendResultItem {
   reason: string | null;
   performance_score: number | null;
   seo_score: number | null;
+  accessibility_score: number | null;
+  best_practices_score: number | null;
   fcp_ms: number | null;
   lcp_ms: number | null;
   tbt_ms: number | null;
@@ -195,9 +197,9 @@ const mapBackendResult = (r: BackendResultItem): ResultItem => ({
   reason: r.reason,
   scores: {
     performance: r.performance_score,
-    accessibility: null,
+    accessibility: r.accessibility_score,
     seo: r.seo_score,
-    best_practices: null,
+    best_practices: r.best_practices_score,
   },
   metrics: {
     fcp_ms: r.fcp_ms,

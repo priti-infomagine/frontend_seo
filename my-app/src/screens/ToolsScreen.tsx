@@ -3,6 +3,7 @@ import { ToolCard } from '../components/tools/ToolCard';
 import { PageSpeedTool } from '../components/tools/PageSpeedTool';
 import { RobotsTxtTool } from '../components/tools/RobotsTxtTool';
 import { SitemapTool } from '../components/tools/SitemapTool';
+import { LinkAnalysisTool } from '../components/tools/LinkAnalysisTool';
 
 interface ToolsScreenProps {
   onViewChange?: (view: string) => void;
@@ -38,6 +39,13 @@ const TOOLS: ToolConfig[] = [
     desc: 'Fetch and parse sitemap.xml to discover all indexed URLs on a website.',
     color: '#8b5cf6',
   },
+  {
+    id: 'link-analysis',
+    icon: '🔗',
+    title: 'Link Analysis',
+    desc: 'Analyze internal and external links, detect broken links, and identify redirect chains.',
+    color: '#ec4899',
+  },
 ];
 
 export function ToolsScreen({}: ToolsScreenProps) {
@@ -59,6 +67,8 @@ export function ToolsScreen({}: ToolsScreenProps) {
         return <RobotsTxtTool onBack={handleBack} />;
       case 'sitemap':
         return <SitemapTool onBack={handleBack} />;
+      case 'link-analysis':
+        return <LinkAnalysisTool onBack={handleBack} />;
       default:
         return null;
     }
